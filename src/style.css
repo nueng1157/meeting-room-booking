@@ -258,3 +258,16 @@ textarea { resize: vertical; }
 .auth-card .brand-logo {
   width: min(100%, 250px);
 }
+
+.booking-toast {
+  position: fixed;
+  z-index: 10;
+  inset-inline-end: 1rem;
+  bottom: 1rem;
+  max-width: calc(100% - 2rem);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .65rem;
+  box-shadow: 0 12px 32px #17264335;
+}

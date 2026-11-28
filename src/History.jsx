@@ -15,7 +15,7 @@ export function History({ admin = false, rooms, duplicate, queue, onUpdated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const listing = useLoad([page, filter, refresh, admin, admin ? queue?.pending : '', admin ? queue?.conflicts : ''].join('/'), () => rpc('booking_history', {
+  const listing = useLoad([page, filter, refresh, admin, admin ? queue?.pending : '', admin ? queue?.conflicts : '', admin ? queue?.requests_total : ''].join('/'), () => rpc('booking_history', {
     p_offset: page * pageSize, p_admin: admin, p_filter: filter,
   }));
   const open = (model) => { setError(''); setModal(model); };

@@ -189,4 +189,53 @@ test('กฎการจองและสิทธิ์บน PostgreSQL', asy
     await action('cancel', refreshed.id);
     assert.deepEqual((await tvSchedule()).counts, { [day]: 1 });
   });
+  await t.test('กติกาเวลาจองมีผลกับทุกสิทธิ์ และแจ้งเตือนครั้งเดียวต่อคำขอ', async () => {
+    await db.exec('reset role');
+    const [{ id: locked }] = await get("select id from public.rooms where name = 'ห้องบรรยาย 3/1-2'");
+    await db.query("update public.rooms set is_active = true where id = $1", [locked]);
+    const dates = ['2099-02-02','2099-02-09'];
+    await auth(user);
+    const oldForm = { ...payload, room_id: locked, start_time: '08:00', end_time: '09:00' };
+    await submit(oldForm, [dates[0]], false, await preview(oldForm, [dates[0]]));
+    await auth(admin);
+    const old = (await history(true)).find((item) => item.room_id === locked && item.booking_date === dates[0]);
+    await action('approve', old.id);
+
+    await db.exec('reset role');
+    await db.exec(await schema('06-booking-time-rules.sql'));
+    await auth(admin);
+    const exceptions = await rpc('admin_booking_time_exceptions', '$1', [0]);
+    assert.equal(exceptions.items[0].id, old.id);
+    const info = await rpc('booking_time_rules', '', []);
+    assert.equal(info.opens_at, '08:00:00');
+    assert.equal(info.closes_at, '16:30:00');
+    assert.equal(info.locks.filter((item) => item.enabled).length, 2);
+    const summary = () => rpc('admin_queue_summary', '', []);
+    assert.equal((await summary()).requests_total, 0);
+    await assert.rejects(rpc('admin_edit_booking', '$1,$2,$3', [old.id, (await history(true)).find((item) => item.id === old.id).updated_at, {
+      ...old, booking_date: dates[1],
+    }]), /การจองอยู่แล้ว|ล็อก/);
+    assert.equal((await history(true)).find((item) => item.id === old.id).status, 'approved');
+    await auth(vip);
+    await assert.rejects(preview({ ...oldForm, start_time: '08:30', end_time: '09:30' }, dates), /ล็อกทุกวัน/);
+    const outside = { ...oldForm, start_time: '16:00', end_time: '17:00' };
+    await assert.rejects(preview(outside, dates), /08:00–16:30/);
+    await assert.rejects(submit(outside, dates, true, dates.map((date) => ({ date, state: 'available' }))), /08:00–16:30/);
+    await assert.rejects(rpc('admin_save_booking_hours', '$1,$2', ['08:00','17:00']), /ไม่มีสิทธิ์/);
+    const allowed = { ...oldForm, start_time: '15:30', end_time: '16:30' };
+    assert.equal((await preview({ ...oldForm, start_time: '09:00', end_time: '10:00' }, dates))[0].state, 'available');
+    const requestId = randomUUID();
+    const slots = await preview(allowed, dates);
+    assert.equal((await submit(allowed, dates, true, slots, requestId)).created, 2);
+    assert.equal((await submit(allowed, dates, true, slots, requestId)).replayed, true);
+    await auth(admin);
+    assert.equal((await summary()).requests_total, 1);
+    await rpc('admin_save_room_lock', '$1,$2,$3,$4', [locked,'08:00','09:00',false]);
+    await rpc('admin_save_booking_hours', '$1,$2', ['08:00','17:00']);
+    await db.exec('reset role');
+    await db.exec(await schema('06-booking-time-rules.sql'));
+    await auth(user);
+    assert.equal((await preview({ ...oldForm, end_time: '08:30' }, [dates[1]]))[0].state, 'available');
+    assert.equal((await preview(outside, [dates[1]]))[0].state, 'blocked');
+  });
 });

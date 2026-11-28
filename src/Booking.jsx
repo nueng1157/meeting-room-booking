@@ -3,6 +3,7 @@ import { ArrowLeft, Building2, CalendarCheck, CalendarPlus, Clock3, UsersRound }
 import { bookingDates, catering, dateObject, formatDate, addMonths, purposes, today, weekdays, timeText } from './domain';
 import { explain, rpc } from './api';
 import { Field, Message, PageTitle } from './common';
+import { bookingHoursText, roomLockText, useBookingRules } from './BookingRules';
 
 function initial(profile, email, booking, edit, prefill) {
   return {
@@ -94,6 +95,8 @@ export function Booking({ profile, email, rooms, duplicate, prefill, onComplete 
   const [end, setEnd] = useState('');
   const [preset, setPreset] = useState('');
   const [slots, setSlots] = useState(null);
+  const rules = useBookingRules();
+  const lock = rules.data?.locks.find((item) => item.enabled && item.room_id === value.room_id);
   const [requestId, setRequestId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -192,7 +195,9 @@ export function Booking({ profile, email, rooms, duplicate, prefill, onComplete 
         </button></div>
       </form>}
       <aside className="panel info-panel">
-        <Clock3 size={22} /><h2>เวลาทำการจอง</h2><p>วันที่และเวลาที่แสดงในระบบอ้างอิงเวลาไทย</p>
+        <Clock3 size={22} /><h2>เวลาทำการจอง</h2>
+        <p>{rules.data ? 'ทุกวัน ' + bookingHoursText(rules.data) : 'วันที่และเวลาที่แสดงในระบบอ้างอิงเวลาไทย'}</p>
+        {lock && <Message type="warning">ห้องนี้ล็อกทุกวัน {roomLockText(lock)}</Message>}
         <hr /><h2>การอนุมัติ</h2><p>ดูผลและห้องล่าสุดได้ที่หน้าประวัติการจองหลังผู้ดูแลพิจารณาคำขอ</p>
       </aside>
     </div>

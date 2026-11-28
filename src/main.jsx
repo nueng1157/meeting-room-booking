@@ -1,6 +1,6 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Building2, CalendarDays, CalendarPlus, ClipboardList, Eye, EyeOff, History as HistoryIcon, LayoutDashboard, LockKeyhole, LogOut, Tv, UsersRound } from 'lucide-react';
+import { Building2, CalendarDays, CalendarPlus, ClipboardList, Clock3, Eye, EyeOff, History as HistoryIcon, LayoutDashboard, LockKeyhole, LogOut, Tv, UsersRound, X } from 'lucide-react';
 import { client, explain, loadProfile, loadRooms, rpc } from './api';
 import { Field, Loading, Message, Modal, useLoad } from './common';
 import { Dashboard, Calendar } from './Overview';
@@ -9,6 +9,7 @@ import { History } from './History';
 import { ManageRooms, ManageUsers } from './Admin';
 import { TvDisplay } from './TvDisplay';
 import { roles } from './domain';
+import { BookingRules } from './BookingRules';
 import './style.css';
 import departmentLogo from './assets/headped.png';
 
@@ -21,6 +22,7 @@ const commonNav = [
 const adminNav = [
   ['queue', 'จัดการคิว', ClipboardList],
   ['rooms', 'ห้องประชุม', Building2],
+  ['rules', 'ตั้งค่าเวลาจอง', Clock3],
   ['users', 'ผู้ใช้งาน', UsersRound],
   ['tv', 'จอทีวี', Tv],
 ];
@@ -135,6 +137,9 @@ function SessionApp({ session }) {
   const [signoutError, setSignoutError] = useState('');
   const [password, setPassword] = useState(false);
   const [queue, setQueue] = useState(null);
+  const requestCount = useRef(null);
+  const [newRequests, setNewRequests] = useState(0);
+  const pendingCount = (queue?.pending ?? 0) + (queue?.conflicts ?? 0);
   const [queueRevision, setQueueRevision] = useState(0);
   const activePage = isAdmin || !adminNav.some(([key]) => key === page) ? page : 'dashboard';
 
@@ -145,13 +150,30 @@ function SessionApp({ session }) {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin || isTv) return;
+    if (!isAdmin) {
+      requestCount.current = null;
+      setNewRequests(0);
+      return;
+    }
+    if (isTv) return;
     let active = true;
+    let fetching = false;
     async function load() {
+      if (fetching) return;
+      fetching = true;
       try {
         const data = await rpc('admin_queue_summary', {});
-        if (active) setQueue(data);
+        if (!active) return;
+        setQueue(data);
+        if (typeof data.requests_total === 'number') {
+          const previous = requestCount.current;
+          requestCount.current = data.requests_total;
+          if (previous !== null && data.requests_total > previous) {
+            setNewRequests((n) => n + data.requests_total - previous);
+          }
+        }
       } catch { if (active) setQueue(null); }
+      finally { fetching = false; }
     }
     load();
     const timer = setInterval(load, 30000);
@@ -186,7 +208,7 @@ function SessionApp({ session }) {
   }} />;
 
   const menu = isAdmin ? [...commonNav, ...adminNav] : commonNav;
-  const needsRooms = ['book', 'queue', 'rooms'].includes(activePage);
+  const needsRooms = ['book', 'queue', 'rooms', 'rules'].includes(activePage);
   return <div className="app-shell">
     <a className="skip" href="#content">ข้ามไปยังเนื้อหา</a>
     <header className="app-header">
@@ -205,7 +227,7 @@ function SessionApp({ session }) {
         {menu.map(([key, title, Icon]) => <button key={key} className="nav-item"
           aria-current={activePage === key ? 'page' : undefined} onClick={() => key === 'book' ? newBooking() : navigate(key)}>
           <Icon size={19} /><span>{title}</span>
-          {key === 'queue' && queue?.conflicts > 0 && <span className="nav-count" aria-label={'รอสลับห้อง ' + queue.conflicts + ' รายการ'}>{queue.conflicts}</span>}
+          {key === 'queue' && pendingCount > 0 && <span className="nav-count" aria-label={'คิวรอพิจารณา ' + pendingCount + ' รายการ'}>{pendingCount}</span>}
         </button>)}
       </nav>
       <main id="content" tabIndex={-1} className="content">
@@ -224,11 +246,19 @@ function SessionApp({ session }) {
           {(activePage === 'history' || activePage === 'queue') && <History key={activePage} admin={activePage === 'queue'}
             rooms={rooms.data ?? []} queue={queue} duplicate={(record) => newBooking(null, record)}
             onUpdated={() => setQueueRevision((n) => n + 1)} />}
+          {isAdmin && activePage === 'rules' && <BookingRules rooms={rooms.data} />}
           {activePage === 'rooms' && <ManageRooms rooms={rooms.data} onUpdated={() => setRoomRevision((n) => n + 1)} />}
           {activePage === 'users' && <ManageUsers onUpdated={(id) => { if (id === session.user.id) setProfileRevision((n) => n + 1); }} />}
         </>}
       </main>
     </div>
+    {isAdmin && newRequests > 0 && <aside className="panel booking-toast" aria-label="แจ้งเตือนคำขอจอง">
+      <p role="status"><strong>มีคำขอจองใหม่ {newRequests} คำขอ</strong></p>
+      <button className="btn primary small" onClick={() => { setNewRequests(0); navigate('queue'); }}>
+        เปิดจัดการคิว
+      </button>
+      <button className="icon-btn" aria-label="ปิดแจ้งเตือน" onClick={() => setNewRequests(0)}><X size={18} /></button>
+    </aside>}
     {password && <PasswordDialog close={() => setPassword(false)}
       onSaved={() => { setPassword(false); setNotice('เปลี่ยนรหัสผ่านแล้ว'); }} />}
   </div>;

@@ -4,6 +4,8 @@ import { rpc } from './api';
 import { addDays, addMonths, dateObject, formatDate, periodBounds, summarize, timeRange, today, weekdays } from './domain';
 import { Empty, Loading, Message, PageTitle, Status, useLoad } from './common';
 
+import { bookingHoursText, roomLockText, useBookingRules } from './BookingRules';
+
 const PurposeChart = lazy(() => import('./PurposeChart'));
 
 function useOverview(anchor, period) {
@@ -74,6 +76,7 @@ function Kpi({ icon: Icon, title, variant, value, detail, others = [] }) {
 }
 
 export function Calendar({ onBook }) {
+  const rules = useBookingRules();
   const [anchor, setAnchor] = useState(today);
   const [roomId, setRoom] = useState('');
   const { from, to, data, loading, error } = useOverview(anchor, 'month');
@@ -121,6 +124,7 @@ export function Calendar({ onBook }) {
       </section>
       <section className="panel">
         <div className="section-heading"><h2>{formatDate(anchor, true)}</h2><Clock3 size={20} /></div>
+        {rules.data && <p className="muted mb-3">เวลาจองทุกวัน {bookingHoursText(rules.data)}</p>}
         {data && <label className="room-filter"><ListFilter size={17} />
           <select aria-label="กรองห้องประชุม" value={selectedRoom} onChange={(e) => setRoom(e.target.value)}>
             <option value="">ทุกห้องประชุม</option>{active.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
@@ -131,6 +135,7 @@ export function Calendar({ onBook }) {
         <div className="agenda">
           {filteredRooms.map((room) => {
             const items = daily.filter((item) => item.room_id === room.id);
+            const lock = rules.data?.locks.find((item) => item.enabled && item.room_id === room.id);
             return <article key={room.id}>
               <div className="agenda-room"><strong>{room.name}</strong>
                 {room.is_active && anchor >= today() && <button className="text-btn" onClick={() => onBook({ date: anchor, room_id: room.id })}>
@@ -138,7 +143,8 @@ export function Calendar({ onBook }) {
                 </button>}
               </div>
               {!room.is_active && <p className="muted">ปิดใช้งาน</p>}
-              {room.is_active && !items.length && <p className="available">ห้องว่างตลอดวัน</p>}
+              {room.is_active && lock && <p className="notice warning">ล็อกทุกวัน {roomLockText(lock)}</p>}
+              {room.is_active && !items.length && <p className="available">ไม่มีรายการจองวันนี้</p>}
               {items.map((item, i) => <div className="agenda-event" key={i}>
                 <span>{timeRange(item)}</span><Status value={item.status} />
               </div>)}
