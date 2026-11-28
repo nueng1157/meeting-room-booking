@@ -63,7 +63,7 @@ export function BookingFields({ value, set, rooms, edit = false }) {
       <textarea value={value.purpose_other} name="purpose_other" onChange={update} required maxLength={500} rows={2} />
     </Field>}
     <div className="sm:col-span-2">
-      <Field label="หัวข้อสำหรับแสดงบนจอทีวี (ไม่บังคับ)">
+      <Field label="ชื่อเรื่อง (หัวข้อสำหรับแสดงบนจอทีวี (ไม่บังคับ))">
         <input name="display_title" value={value.display_title} onChange={update} maxLength={140}
           placeholder="เช่น ประชุมทีมวางแผนการอบรม" aria-describedby="booking-tv-title-help" />
       </Field>

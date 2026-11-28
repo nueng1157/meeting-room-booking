@@ -5,7 +5,7 @@ export const statuses = {
   pending: 'รออนุมัติ', approved: 'อนุมัติแล้ว', conflict_pending: 'รอพิจารณาสลับห้อง', cancelled: 'ยกเลิกแล้ว',
 };
 export const purposes = ['ประชุม', 'อบรม', 'สอน', 'ปฐมนิเทศนักเรียน', 'Open House', 'สัมมนา', 'อื่นๆ'];
-export const catering = ['อาหารว่าง', 'อาหารกลางวัน', 'กาแฟ'];
+export const catering = ['อาหารว่าง', 'อาหารกลางวัน'];
 export const weekdays = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 
 const bangkok = new Intl.DateTimeFormat('en-CA', {
